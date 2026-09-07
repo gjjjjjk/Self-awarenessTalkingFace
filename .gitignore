@@ -1,0 +1,36 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Training outputs and data
+dataset/
+data/
+output/
+outputs/
+runs/
+checkpoints/
+wandb/
+
+# Large archives and temporary downloads
+*.zip
+*.tgz
+*.tar
+*.tar.gz
+*.part
+.xdp-*
+*.pdf
+
+# Models and generated binaries
+*.pth
+*.pt
+*.pb
+*.npy
+*.so
+
+# Downloaded/reference source trees not managed as submodules
+BaselFaceModel/
+pytorch3d-0.7.9/
+globalsplat-main/
+emodifftalk/
