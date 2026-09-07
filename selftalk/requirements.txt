@@ -1,0 +1,17 @@
+torch>=2.0
+torchvision
+torchaudio
+einops>=0.7
+numpy
+scipy
+lpips
+pytorch-msssim
+pyyaml
+tqdm
+imageio[ffmpeg]
+opencv-python
+transformers>=4.36
+pandas
+librosa
+soundfile
+pytest

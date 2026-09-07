@@ -12,6 +12,8 @@ outputs/
 runs/
 checkpoints/
 wandb/
+build/
+*.egg-info
 
 # Large archives and temporary downloads
 *.zip
@@ -21,6 +23,7 @@ wandb/
 *.part
 .xdp-*
 *.pdf
+*.md
 
 # Models and generated binaries
 *.pth
