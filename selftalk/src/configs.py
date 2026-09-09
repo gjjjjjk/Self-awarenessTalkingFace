@@ -66,7 +66,10 @@ class Audio2AUConfig:
     """lambda_v: weight of the first-difference L1 term."""
     lambda_acc: float = 0.1
     """lambda_a: weight of the second-difference L1 term."""
+    lambda_confidence: float = 0.05
+    """Weight of the OpenFace tracking-confidence prediction term."""
     lr: float = 1e-4
+    weight_decay: float = 1e-4
     epochs: int = 50
 
 

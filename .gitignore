@@ -24,6 +24,8 @@ build/
 .xdp-*
 *.pdf
 *.md
+docs/
+selftalk/tests/
 
 # Models and generated binaries
 *.pth

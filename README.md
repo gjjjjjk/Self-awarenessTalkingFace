@@ -24,4 +24,11 @@ python -m pip install --no-build-isolation \
 
 python -m pip install --no-build-isolation \
   -e submodules/simple-knn
+
+cd selftalk
+
+python -m src.training.train_audio2au \
+  --data ../GaussianTalker1/data/May \
+  --device cuda \
+  --num_workers 4
 ```

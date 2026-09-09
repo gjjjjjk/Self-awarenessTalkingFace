@@ -1,15 +1,8 @@
-"""Stage 2: Audio-to-AU network (speech-related lower-face AUs only in v1).
+"""Stage 2: Audio-to-AU network for frame-aligned acoustic features.
 
-    audio window A_{t-w:t+w}
-        ↓  (frozen pretrained audio encoder — Wav2Vec2/HuBERT, run in stage 0)
-    feature projection
-        ↓
-    Temporal Transformer
-        ↓
-    AU intensity (lower-face) + AU confidence
-
-Blink, gaze and head pose are NOT predicted here; they enter stage 3 as
-independent condition tokens (see `deformation/tokens.py`).
+The May data stores one DeepSpeech feature map [16, 29] per video frame.
+Each map is flattened to a frame token before a non-causal temporal
+Transformer predicts lower-face AU intensity and tracking confidence.
 """
 from __future__ import annotations
 
@@ -20,10 +13,7 @@ from ..configs import Audio2AUConfig
 
 
 class TemporalTransformer(nn.Module):
-    """Causal-free Transformer encoder over the time axis.
-
-    Input x: [B, T, D]. Output: [B, T, D].
-    """
+    """Non-causal Transformer encoder over the video-frame time axis."""
 
     def __init__(self, d_model: int, n_heads: int, n_layers: int, dropout: float) -> None:
         super().__init__()
@@ -41,25 +31,32 @@ class TemporalTransformer(nn.Module):
         self.pos_embed = nn.Parameter(0.02 * torch.randn(1, 1024, d_model))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Encode x [B, T, D] and return [B, T, D]."""
         if x.ndim != 3:
             raise ValueError(f"x must be [B, T, D], got {tuple(x.shape)}")
-        t = x.shape[1]
-        if t > self.pos_embed.shape[1]:
-            raise ValueError(f"sequence length {t} exceeds positional table {self.pos_embed.shape[1]}")
-        return self.encoder(x + self.pos_embed[:, :t])
+        length = x.shape[1]
+        if length > self.pos_embed.shape[1]:
+            raise ValueError(
+                f"sequence length {length} exceeds positional table "
+                f"{self.pos_embed.shape[1]}"
+            )
+        return self.encoder(x + self.pos_embed[:, :length])
 
 
 class Audio2AUNet(nn.Module):
-    """Predicts lower-face AU intensities (in [0, 5]) and confidence.
+    """Predict lower-face AU intensities and OpenFace tracking confidence.
 
     Args:
-        config: Audio2AUConfig.
-        num_out_au: number of predicted AUs; defaults to lower-face count.
+        config: Audio2AUConfig. ``audio_feature_dim`` is the flattened
+            dimension of one video-frame acoustic feature (464 for May).
+        num_out_au: Number of predicted lower-face AUs.
 
-    Input/Output:
-        audio_window A_{t-w:t+w}: [B, T, D_in] pretrained audio features.
-        returns dict with `au`: [B, T, num_out_au] and
-        `confidence`: [B, T, num_out_au] in (0, 1).
+    Inputs:
+        audio_window: [B, T, D] or May-format [B, T, 16, 29].
+
+    Returns:
+        A dict containing ``au`` [B, T, A] in (0, 5) and ``confidence``
+        [B, T, A] in (0, 1).
     """
 
     AU_MAX = 5.0
@@ -80,15 +77,29 @@ class Audio2AUNet(nn.Module):
         nn.init.zeros_(self.head_au.bias)
         nn.init.zeros_(self.head_conf.bias)
 
-    def forward(self, audio_window: torch.Tensor) -> dict[str, torch.Tensor]:
-        if audio_window.ndim != 3:
-            raise ValueError(f"audio_window must be [B, T, D], got {tuple(audio_window.shape)}")
-        if audio_window.shape[-1] != self.input_proj.in_features:
+    def initialize_au_prior(self, mean_au: torch.Tensor) -> None:
+        """Initialize the AU head bias from training-set means [A]."""
+        if mean_au.shape != (self.num_out_au,):
             raise ValueError(
-                f"audio feature dim {audio_window.shape[-1]} != "
-                f"{self.input_proj.in_features}; check DataConfig.audio_feature_dim"
+                f"mean_au must be [{self.num_out_au}], got {tuple(mean_au.shape)}"
             )
-        h = self.temporal(self.input_proj(audio_window))
-        au = self.AU_MAX * torch.sigmoid(self.head_au(h))
-        confidence = torch.sigmoid(self.head_conf(h))
+        probability = (mean_au / self.AU_MAX).clamp(1e-4, 1.0 - 1e-4)
+        with torch.no_grad():
+            self.head_au.bias.copy_(torch.logit(probability).to(self.head_au.bias))
+
+    def forward(self, audio_window: torch.Tensor) -> dict[str, torch.Tensor]:
+        if audio_window.ndim < 3:
+            raise ValueError(
+                f"audio_window must be [B, T, ...], got {tuple(audio_window.shape)}"
+            )
+        batch, length = audio_window.shape[:2]
+        flattened = audio_window.reshape(batch, length, -1)
+        if flattened.shape[-1] != self.config.audio_feature_dim:
+            raise ValueError(
+                f"flattened audio feature dim {flattened.shape[-1]} != "
+                f"{self.config.audio_feature_dim}"
+            )
+        hidden = self.temporal(torch.nn.functional.gelu(self.input_proj(flattened)))
+        au = self.AU_MAX * torch.sigmoid(self.head_au(hidden))
+        confidence = torch.sigmoid(self.head_conf(hidden))
         return {"au": au, "confidence": confidence}
