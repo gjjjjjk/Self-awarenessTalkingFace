@@ -5,11 +5,11 @@ import numpy as np
 import pytest
 import torch
 
-from selftalk.audio2au import Audio2AUNet, audio2au_loss
-from selftalk.audio2au.loss import _first_difference, _second_difference
-from selftalk.canonical import CanonicalGaussianModel, MultiResolutionTriplane
-from selftalk.configs import Audio2AUConfig, DeformationConfig
-from selftalk.deformation import (
+from src.audio2au import Audio2AUNet, audio2au_loss
+from src.audio2au.loss import _first_difference, _second_difference
+from src.canonical import CanonicalGaussianModel, MultiResolutionTriplane
+from src.configs import Audio2AUConfig, DeformationConfig
+from src.deformation import (
     ConditionEncoder,
     DirectConditionDeformation,
     MotionTokenDeformation,
@@ -17,17 +17,17 @@ from selftalk.deformation import (
     default_region_weights,
     quaternion_multiply,
 )
-from selftalk.deformation.region_weights import NUM_REGIONS
-from selftalk.evaluation import aue, psnr
-from selftalk.losses import photometric_loss
-from selftalk.losses.regularizers import (
+from src.deformation.region_weights import NUM_REGIONS
+from src.evaluation import aue, psnr
+from src.losses import photometric_loss
+from src.losses.regularizers import (
     acceleration_regularizer,
     displacement_regularizer,
     knn_neighbors,
     neighborhood_consistency,
     velocity_regularizer,
 )
-from selftalk.rendering import Camera, render
+from src.rendering import Camera, render
 
 
 @pytest.fixture()
@@ -134,7 +134,7 @@ def test_motion_tokenizer(canonical, condition):
 
 def test_constrained_update_invariants(canonical):
     can = canonical(num_gaussians=128, batch_size=2)
-    from selftalk.deformation.types import DeformationDeltas
+    from src.deformation.types import DeformationDeltas
 
     deltas = DeformationDeltas(
         means=torch.randn(2, 128, 3) * 0.01,
@@ -207,7 +207,7 @@ def test_phometric_loss_terms():
 
 
 def test_cpu_render_shape(canonical):
-    from selftalk.deformation.types import DeformedGaussians
+    from src.deformation.types import DeformedGaussians
 
     can = canonical(num_gaussians=128, batch_size=1)
     frame = DeformedGaussians(
@@ -226,7 +226,7 @@ def test_cpu_render_shape(canonical):
 
 
 def test_cpu_render_differentiable(canonical):
-    from selftalk.deformation.types import DeformedGaussians
+    from src.deformation.types import DeformedGaussians
 
     can = canonical(num_gaussians=128, batch_size=1)
     opacities = can.opacities[0].clamp(0.1, 0.9)
@@ -258,7 +258,7 @@ def test_dataset_roundtrip(tmp_path):
     np.save(tmp_path / "audio_feat.npy", np.random.rand(12, 8).astype(np.float32))
     np.save(tmp_path / "au.npy", np.random.rand(12, 17).astype(np.float32) * 5)
 
-    from selftalk.data import TalkingFaceDataset
+    from src.data import TalkingFaceDataset
 
     ds = TalkingFaceDataset(tmp_path, audio_window=2)
     assert len(ds) == 12
@@ -273,7 +273,7 @@ def test_dataset_roundtrip(tmp_path):
 def test_openface_parsing(tmp_path):
     import pandas as pd
 
-    from selftalk.data.preprocess import parse_openface_au, parse_openface_extras
+    from src.data.preprocess import parse_openface_au, parse_openface_extras
 
     rng = np.random.default_rng(0)
     num = 5
@@ -303,7 +303,7 @@ def test_openface_parsing(tmp_path):
 
 
 def test_au_pyfeat_row_conversion():
-    from selftalk.data.au_pyfeat import (
+    from src.data.au_pyfeat import (
         blink_from_ear,
         eye_aspect_ratio,
         to_openface_row,
@@ -356,7 +356,7 @@ def test_metrics():
 def test_selfcheck_synthetic_data(tmp_path):
     pytest.importorskip("cv2")
 
-    from selftalk.training.selfcheck import (
+    from src.training.selfcheck import (
         SELFCHK_AUDIO_DIM,
         make_synthetic_binary,
         synthetic_au_sequences,
